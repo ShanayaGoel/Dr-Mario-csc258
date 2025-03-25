@@ -110,57 +110,164 @@ base_collision_check_both:
 	li $a0 16
 	syscall
 	j game_loop
-	
+
 downward_collision:
-    # sleep then create new capsule
-    lw $t2 CAP0_ADDR
-    lw $t3 CAP1_ADDR
-    add $t9 , $0, 3
-    add $t8 , $0, 3
-    # loop through column of 4 to see if it eliminates
-    next_4_cap0: 
-        lw $t6 0($t2) # colour at CAP0
-        lw $t7 256($t2) # colour at 1 below CAP0
-        bne $t6, $t7, next_4_cap1   # if colours not same, loop over
-        addi $t9, $t9, -1   # reduce counter
-        addi $t2, $t2, 256
-        bge $t9, $zero, next_4_cap0 # if there are greater than 0 steps left, loop
-        # code for erasing column
-        lw $t6 COLOUR_BLACK # assign black to t6
-        lw $t2 CAP0_ADDR
-        sw $t6 0($t2) # erase first
-        addi $t2, $t2, 256
-        sw $t6 0($t2) # erase second
-        addi $t2, $t2, 256
-        sw $t6 0($t2) # erase third 
-        addi $t2, $t2, 256
-        sw $t6 0($t2) # erase fourth 
+    # First check if we should create new capsule
+    lw $t2, CAP0_ADDR
+    lw $t3, CAP1_ADDR
+    
+    # Load capsule colors to compare against
+    lw $t4, CAP0_COL
+    lw $t5, CAP1_COL
+    
+    li $t9, 0  # counter for CAP0 column matches
+    li $t8, 0  # counter for CAP1 column matches
+    
+    # Check vertical column below CAP0
+    check_cap0_column:
+        lw $t6, 0($t2)       # current pixel color
+        beq $t6, $t4, cap0_match  # if matches CAP0 color
+        j check_cap1_column   # no match, move to CAP1 check
         
-    next_4_cap1:    
-        lw $t3 CAP1_ADDR
-        lw $t6 0($t3) # colour at CAP1
-        lw $t7 256($t3) # colour at 1 below CAP1
-        bne $t6, $t7, colour_column_loop_over # if colours not same, loop over
-        addi $t8, $t8, -1   # reduce counter
-        addi $t3, $t3, 256
-        bge $t8, $zero, next_4_cap1 # if there are greater than 0 steps left, loop
-        # code for erasing column
-        lw $t6 COLOUR_BLACK # assign black to t6
-        lw $t3 CAP1_ADDR
-        sw $t6 0($t3) # erase first
-        addi $t3, $t3, 256
-        sw $t6 0($t3) # erase second
-        addi $t3, $t3, 256
-        sw $t6 0($t3) # erase third 
-        addi $t3, $t3, 256
-        sw $t6 0($t3) # erase fourth 
+    cap0_match:
+        addi $t9, $t9, 1      # increment match counter
+        addi $t2, $t2, 256    # move down
+        lw $t6, 0($t2)        # check next pixel
+        beq $t6, $t4, cap0_match  # continue if still matching
+    
+    # Check vertical column below CAP1
+    check_cap1_column:
+        lw $t6, 0($t3)       # current pixel color
+        beq $t6, $t5, cap1_match  # if matches CAP1 color
+        j check_horizontal_rows # no match, move to horizontal check
         
+    cap1_match:
+        addi $t8, $t8, 1      # increment match counter
+        addi $t3, $t3, 256    # move down
+        lw $t6, 0($t3)        # check next pixel
+        beq $t6, $t5, cap1_match  # continue if still matching
+    
+    check_horizontal_rows:
+        # Check row for CAP0 first
+        lw $t1, CAP0_ADDR
+        andi $t7, $t1, 0xFFFFFF00 # Align to start of row
         
-    colour_column_loop_over: # for when the loop is over
-    li $v0, 32
-	li $a0 16
-	syscall
-    jal draw_capsule
+        # Prepare to scan the row
+        li $s0, 0             # Current streak counter
+        lw $s1, CAP0_COL      # Color to match
+        move $s2, $t7         # Current position
+        addi $s3, $t7, 64     # End of row
+        li $s4, 0             # Start position of streak
+        
+    scan_row_for_streak:
+        lw $t6, 0($s2)        # Get pixel color
+        bne $t6, $s1, reset_streak # Reset if color doesn't match
+        
+        # If this is start of new streak, save position
+        beqz $s0, set_streak_start
+        j increment_streak
+        
+    set_streak_start:
+        move $s4, $s2         # Save start of potential streak
+        
+    increment_streak:
+        addi $s0, $s0, 1      # Increment streak counter
+        bge $s0, 4, erase_streak # Found 4 in a row
+        
+    continue_scanning:
+        addi $s2, $s2, 4      # Move to next pixel
+        blt $s2, $s3, scan_row_for_streak
+        j check_cap1_row       # No streak found in CAP0's row
+        
+    reset_streak:
+        li $s0, 0             # Reset streak counter
+        j continue_scanning
+        
+    erase_streak:
+        # Erase just the 4-pixel streak
+        lw $t6, COLOUR_BLACK
+        sw $t6, 0($s4)        # Erase first pixel
+        sw $t6, 4($s4)        # Erase second pixel
+        sw $t6, 8($s4)        # Erase third pixel
+        sw $t6, 12($s4)       # Erase fourth pixel
+        j check_vertical_erase # Skip CAP1 row check
+        
+    check_cap1_row:
+        # Only check CAP1's row if different from CAP0's
+        lw $t1, CAP1_ADDR
+        andi $t7, $t1, 0xFFFFFF00
+        beq $t7, $s4, check_vertical_erase # Skip if same row
+        
+        # Reset counters for CAP1's row
+        li $s0, 0
+        lw $s1, CAP1_COL
+        move $s2, $t7
+        addi $s3, $t7, 64
+        
+    scan_cap1_row:
+        lw $t6, 0($s2)        # Get pixel color
+        bne $t6, $s1, reset_cap1_streak
+        
+        beqz $s0, set_cap1_start
+        j increment_cap1_streak
+        
+    set_cap1_start:
+        move $s4, $s2         # Save start position
+        
+    increment_cap1_streak:
+        addi $s0, $s0, 1
+        bge $s0, 4, erase_cap1_streak
+        j continue_cap1_scan
+        
+    reset_cap1_streak:
+        li $s0, 0
+        j continue_cap1_scan
+        
+    erase_cap1_streak:
+        lw $t6, COLOUR_BLACK
+        sw $t6, 0($s4)
+        sw $t6, 4($s4)
+        sw $t6, 8($s4)
+        sw $t6, 12($s4)
+        
+    continue_cap1_scan:
+        addi $s2, $s2, 4
+        blt $s2, $s3, scan_cap1_row
+    check_vertical_erase:
+        # Only erase if we have 4 or more in a column
+        blt $t9, 4, check_cap1_erase
+        # Erase CAP0 column
+        lw $t2, CAP0_ADDR
+        lw $t6, COLOUR_BLACK
+        sw $t6, 0($t2)        # erase first
+        addi $t2, $t2, 256
+        sw $t6, 0($t2)        # erase second
+        addi $t2, $t2, 256
+        sw $t6, 0($t2)        # erase third
+        addi $t2, $t2, 256
+        sw $t6, 0($t2)        # erase fourth
+        
+    check_cap1_erase:
+        blt $t8, 4, column_check_done
+        # Erase CAP1 column
+        lw $t3, CAP1_ADDR
+        lw $t6, COLOUR_BLACK
+        sw $t6, 0($t3)        # erase first
+        addi $t3, $t3, 256
+        sw $t6, 0($t3)        # erase second
+        addi $t3, $t3, 256
+        sw $t6, 0($t3)        # erase third
+        addi $t3, $t3, 256
+        sw $t6, 0($t3)        # erase fourth
+        
+    column_check_done:
+        # Small delay before new capsule
+        li $v0, 32
+        li $a0, 16
+        syscall
+        
+        # Draw new capsule
+        jal draw_capsule
 
 keyboard_input:                     # A key is pressed
     lw $a0, 4($t1)                  # Load second word from keyboard
