@@ -1,3 +1,20 @@
+ ################# CSC258 Assembly Final Project ###################
+# This file contains our implementation of Dr Mario.
+#
+# Student 1: Shanaya Goel, 1010153361
+# Student 2: Name, Student Number (if applicable)
+#
+# We assert that the code submitted here is entirely our own 
+# creation, and will indicate otherwise when it is not.
+#
+######################## Bitmap Display Configuration ########################
+# - Unit width in pixels:       1
+# - Unit height in pixels:      1
+# - Display width in pixels:    64
+# - Display height in pixels:   64
+# - Base Address for Display:   0x10008000 ($gp)
+##############################################################################
+    
     .data
 ##############################################################################
 # Immutable Data
@@ -11,7 +28,6 @@ COLOR_RED:    .word 0xFF0000  # Capsule left half
 COLOR_BLUE:   .word 0x0000FF  # Capsule right half
 COLOUR_BLACK: .word 0x000000  # Black for background
 
-
 ##############################################################################
 # Our Variables
 ##############################################################################
@@ -21,7 +37,6 @@ CAP0_COL:   .word COLOR_GRAY # center pixel colour
 CAP1_ADDR:  .word ADDR_DSPL  # outer pixel address
 CAP1_COL:   .word COLOR_GRAY # outer pixel colour
 # should I add a variable related to orientation?
-
 ##############################################################################
 # Code
 ##############################################################################
