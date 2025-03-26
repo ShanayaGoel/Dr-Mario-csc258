@@ -34,7 +34,10 @@ main:
 
     # Draw the bottle
     jal draw_bottle
-
+    
+    # Draw viruses
+    jal draw_viruses
+    after_virus_draw:
     # Draw the first capsule
     jal draw_capsule
 
@@ -115,6 +118,10 @@ downward_collision:
     # First check if we should create new capsule
     lw $t2, CAP0_ADDR
     lw $t3, CAP1_ADDR
+    # Check if the capsule has reached the top and the game is over
+    beq $t2, 0x10009b28, respond_to_Q # check cap0 to redirect
+    beq $t3, 0x10009c28, respond_to_Q # check cap1 to redirect
+    
     
     # Load capsule colors to compare against
     lw $t4, CAP0_COL
@@ -544,6 +551,7 @@ return_blue:
     jr $ra
 
 
+
 draw_capsule:
     jal choose_random_color # Get a random number (1, 2, or 3)
     move $t1, $v0           # Store result in $t1
@@ -583,3 +591,103 @@ draw_capsule:
     sw $t6 0($t7)   # store outer pixel address
     j game_loop     # I was facing a problem with the following line causing a loop and not working, so I added this
     jr $ra  # Return
+    
+    
+##########################################################
+# Drawing the viruses (does not store places of viruses for game over case)
+##########################################################
+choose_v_location_x:
+    li $v0, 42         # Syscall for random integer (0 ≤ result < $a0)
+    li $a0, 0
+    li $a1, 9    
+    syscall            # Get a random number in $a0
+    
+    addi $a0, $a0, 6   # Shift range from (0-9) to (6-15) to be in bottle range
+    move $v0, $a0
+
+    jr $ra
+    
+choose_v_location_y:
+    li $v0, 42         # Syscall for random integer (0 ≤ result < $a0)
+    li $a0, 0
+    li $a1, 8    
+    syscall            # Get a random number in $a0
+    
+    addi $a0, $a0, 38   # Shift range from (0-8) to (38-46) to be in bottle range
+    move $v0, $a0
+
+    jr $ra
+    
+draw_viruses:
+    jal choose_v_location_x
+    move $t1, $v0 # assign x location for v1
+    jal choose_v_location_y
+    move $t2, $v0 # assign y location for v1
+    choose_v2_loc:
+    jal choose_v_location_x
+    move $t3, $v0 # assign x location for v2
+    jal choose_v_location_y
+    move $t4, $v0 # assign y location for v2
+    # check if location is same as v1
+    beq $t1, $t3, check_eq_y_v2 # if x is same, check y
+    j choose_v3_loc
+    check_eq_y_v2:
+        beq $t2, $t4, choose_v2_loc # if y is same choose another v2 location
+    choose_v3_loc:
+    jal choose_v_location_x
+    move $t5, $v0 # assign x location for v3
+    jal choose_v_location_y
+    move $t6, $v0 # assign y location for v3
+    # check if location is same as v1
+    beq $t1, $t3, check_v1eq_y_v3  # if x is same, check y
+    j start_actually_drawing_viruses
+    check_v1eq_y_v3:
+        beq $t2, $t4, choose_v3_loc # if y is same choose another v2 location
+    # check if location is same as v2
+    beq $t3, $t5, check_v2eq_y_v3 # if x is same, check y
+    j start_actually_drawing_viruses
+    check_v2eq_y_v3:
+        beq $t4, $t6, choose_v3_loc # if y is same choose another v2 location
+        
+    ####### Start actually drawing viruses ################## FEEL FREE TO REVIEW
+    start_actually_drawing_viruses:
+    # Load the base address of the display
+    lw $t0, ADDR_DSPL 
+    
+    # Screen width
+    li $t9, 64 
+    # v1 drawing
+    jal choose_random_color
+    move $t7, $v0 # assign colour for v1
+    
+    mul $t8, $t2, $t9  
+    add $t8, $t8, $t1  
+    sll $t8, $t8, 2    
+    add $t8, $t8, $t0  
+    
+    sw $t7, 0($t8)
+    
+    # v2 drawing
+    jal choose_random_color
+    move $t7, $v0 # assign colour for v2
+    
+    mul $t8, $t4, $t9  
+    add $t8, $t8, $t3  
+    sll $t8, $t8, 2    
+    add $t8, $t8, $t0  
+    
+    sw $t7, 0($t8)
+    
+    # v3 drawing
+    jal choose_random_color
+    move $t7, $v0 # assign colour for v3
+    
+    mul $t8, $t6, $t9  
+    add $t8, $t8, $t5  
+    sll $t8, $t8, 2    
+    add $t8, $t8, $t0  
+    
+    sw $t7, 0($t8)
+    j after_virus_draw # trying to escape a bug
+    jr $ra
+
