@@ -2,7 +2,7 @@
 # This file contains our implementation of Dr Mario.
 #
 # Student 1: Shanaya Goel, 1010153361
-# Student 2: Name, Student Number (if applicable)
+# Student 2: Edison Yao, 10097978792
 #
 # We assert that the code submitted here is entirely our own 
 # creation, and will indicate otherwise when it is not.
