@@ -37,6 +37,12 @@ CAP0_COL:   .word COLOR_GRAY # center pixel colour
 CAP1_ADDR:  .word ADDR_DSPL  # outer pixel address
 CAP1_COL:   .word COLOR_GRAY # outer pixel colour
 # should I add a variable related to orientation?
+V1_ADDR:    .word ADDR_DSPL  # virus 1 location
+V2_ADDR:    .word ADDR_DSPL  # virus 2 location
+V3_ADDR:    .word ADDR_DSPL  # virus 3 location
+# FOR PERUSING THE GRID
+CHECKING_X: .word ADDR_DSPL  # x of the spot
+CHECKING_Y: .word ADDR_DSPL  # y of the spot
 ##############################################################################
 # Code
 ##############################################################################
@@ -288,8 +294,241 @@ downward_collision:
         li $a0, 16
         syscall
         
+        jal drop_down_extras
+        
         # Draw new capsule
         jal draw_capsule
+        
+        
+        
+        
+        
+        
+        
+##############UNDER MAJOR CONSTRUCTION##########
+##############UNDER MAJOR CONSTRUCTION##########
+##############UNDER MAJOR CONSTRUCTION##########
+
+        
+downward_collision_after_dropping_extras:
+    lw $t1, ADDR_KBRD               # $t1 = base address for keyboard
+
+    # LETS SAY $t8 is the location of the current pixel
+    add $t2, $t8, $zero # assign current pixel address to og address of cap0
+    
+    # Check if the capsule has reached the top and the game is over
+    beq $t2, 0x10009b28, respond_to_Q # check cap0 to redirect
+   
+    
+    
+    # Load capsule colors to compare against
+    lw $t4, 0($t2)
+    
+    
+    li $t9, 0  # counter for pixel column matches
+    
+    
+    # Check vertical column below pixel
+    check_pix_column:
+        lw $t6, 0($t2)       # current pixel color
+        beq $t6, $t4, pix_match  # if matches pix color
+        j check_horizontal_rows_pix   # no match, move to chck horizontal rows
+        
+    pix_match:
+        addi $t9, $t9, 1      # increment match counter
+        addi $t2, $t2, 256    # move down
+        lw $t6, 0($t2)        # check next pixel
+        beq $t6, $t4, pix_match  # continue if still matching
+    
+    
+    check_horizontal_rows_pix:
+        # Check row for CAP0 first
+        add $t1, $t8, $zero
+        andi $t7, $t1, 0xFFFFFF00 # Align to start of row
+        
+        # Prepare to scan the row
+        li $s0, 0             # Current streak counter
+        lw $s1, 0($t8)      # Color to match
+        move $s2, $t7         # Current position
+        addi $s3, $t7, 64     # End of row
+        li $s4, 0             # Start position of streak
+        
+    scan_row_for_streak_pix:
+        lw $t6, 0($s2)        # Get pixel color
+        bne $t6, $s1, reset_streak_pix # Reset if color doesn't match
+        
+        # If this is start of new streak, save position
+        beqz $s0, set_streak_start_pix
+        j increment_streak_pix
+        
+    set_streak_start_pix:
+        move $s4, $s2         # Save start of potential streak
+        
+    increment_streak_pix:
+        addi $s0, $s0, 1      # Increment streak counter
+        bge $s0, 4, erase_streak_pix # Found 4 in a row
+        
+    continue_scanning_pix:
+        addi $s2, $s2, 4      # Move to next pixel
+        blt $s2, $s3, scan_row_for_streak_pix
+        j check_vertical_erase_pix       # No streak found in pix's row
+        
+    reset_streak_pix:
+        li $s0, 0             # Reset streak counter
+        j continue_scanning_pix
+        
+    erase_streak_pix:
+        # Erase just the 4-pixel streak
+        lw $t6, COLOUR_BLACK
+        sw $t6, 0($s4)        # Erase first pixel
+        sw $t6, 4($s4)        # Erase second pixel
+        sw $t6, 8($s4)        # Erase third pixel
+        sw $t6, 12($s4)       # Erase fourth pixel
+        j check_vertical_erase_pix # 
+        
+    
+    check_vertical_erase_pix:
+        # Only erase if we have 4 or more in a column
+        blt $t9, 4, column_check_done_pix
+        # Erase CAP0 column
+        add $t2, $t8, $zero
+        lw $t6, COLOUR_BLACK
+        sw $t6, 0($t2)        # erase first
+        addi $t2, $t2, 256
+        sw $t6, 0($t2)        # erase second
+        addi $t2, $t2, 256
+        sw $t6, 0($t2)        # erase third
+        addi $t2, $t2, 256
+        sw $t6, 0($t2)        # erase fourth
+        
+    column_check_done_pix:
+        # Small delay before new capsule
+        li $v0, 32
+        li $a0, 16
+        syscall
+        
+        j post_dropping_extras_stuff
+
+
+
+
+
+
+#############UNDER CONSTRUCTION##########
+#############UNDER CONSTRUCTION##########
+#############UNDER CONSTRUCTION##########
+#############UNDER CONSTRUCTION##########
+
+
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+
+# When column is cleared drop down extra unsupported bits
+drop_down_extras:
+    # check row first then column iterate elements of bottom row, then next from bottom, then...
+    # Load the base address of the display
+    lw $t0, ADDR_DSPL
+    
+    # Screen width
+    li $t9, 64 
+    
+    # starting column
+    li $t1, 5
+    la $t3, CHECKING_X
+    sw $t1, 0($t3) # set CHECKING_X to 5
+    # starting row
+    li $t2, 47
+    la $t3, CHECKING_Y
+    sw $t2, 0($t3) # set CHECKING_Y to 47
+    
+    drop_down_extra_run:
+    # Load the base address of the display
+    lw $t0, ADDR_DSPL 
+    
+    # Screen width
+    li $t9, 64 
+    
+    #hopefully this works
+    lw $t1, CHECKING_X
+    lw $t2, CHECKING_Y
+    
+    mul $t8, $t2, $t9  # assign y * screen width to $t8
+    add $t8, $t8, $t1  # add x value to start of row y 
+    sll $t8, $t8, 2    # some shifting stuff
+    add $t8, $t8, $t0  # add grid location to base bitmap address to produce actual bitmap address
+    
+    check_virus_for_drop_down_extras:
+    # checking if its a virus
+    
+    lw $t4, V1_ADDR
+    beq $t8, $t4, post_dropping_extras_stuff # if we're looking at v1 location, just skip past droping pixel
+    lw $t4, V2_ADDR
+    beq $t8, $t4, post_dropping_extras_stuff # if we're looking at v2 location, just skip past dropping pixel
+    lw $t4, V3_ADDR
+    beq $t8, $t4, post_dropping_extras_stuff # if we're looking at v3 location, just skip past dropping pixel
+    
+    #######TESTING#######
+    dropping_pixel_T:
+     lw $t7, 0($t8) # colour of current pixel
+     beq $t7, $zero, after_drop_testing
+     
+     addi $t5, $t8, 256 # next pixel address is t5
+     
+     lw $t6, 0($t5) # colour of next pixel
+     bne $t6, $zero, downward_collision_after_dropping_extras
+     sw $zero, 0($t8)
+     sw $t7, 0($t5)        # Change to curr pixel colour
+     addi $t8, $t8, 256 # increment $t8 curr pixel address
+     j dropping_pixel_T
+    
+    after_drop_testing:
+    #######TESTING#########
+    
+    
+    ################UNDER CONSTRUCTION ################
+    # check at location of $t8
+    #CODE STUFFHEWHFAGFGEW
+    
+    ################
+    post_dropping_extras_stuff:
+    
+    li $t4, 16 # max x value
+    la $t3, CHECKING_X
+    lw $t1, 0($t3) # set $t1 to X value
+    beq $t1, $t4, one_row_up
+    addi $t1, $t1, 1 # increase column by 1
+    sw $t1, 0($t3) # set CHECKING_X to to new value
+    #j drop_down_extra_run
+    # STAY ON ALERT
+    j drop_down_extra_run
+    
+    one_row_up:
+        li $t1, 5
+        la $t3, CHECKING_X
+        sw $t1, 0($t3) # set CHECKING_X to 5
+        # take in row
+        li $t4, 31 # max y value
+        la $t3, CHECKING_Y
+        lw $t2, 0($t3) # set $t2 to Y value
+        
+        # check for end row which is row 31
+        beq $t2, $t4, end_drop_down_stuff
+        addi $t2, $t2, -1 # increase row by 1
+        sw $t2, 0($t3) # set CHECKING_Y to new value
+        j drop_down_extra_run
+    
+    end_drop_down_stuff:
+        #ADD CODE LATER TO END THIS DROPPING DOWN SEQUENCE ##############
+        jr $ra
+    
 
 keyboard_input:                     # A key is pressed
     lw $a0, 4($t1)                  # Load second word from keyboard
@@ -675,12 +914,18 @@ draw_viruses:
     jal choose_random_color
     move $t7, $v0 # assign colour for v1
     
-    mul $t8, $t2, $t9  
-    add $t8, $t8, $t1  
-    sll $t8, $t8, 2    
-    add $t8, $t8, $t0  
+    mul $t8, $t2, $t9  # assign y * screen width to $t8
+    add $t8, $t8, $t1  # add x value to start of row y 
+    sll $t8, $t8, 2    # some shifting stuff
+    add $t8, $t8, $t0  # add grid location to base bitmap address
     
     sw $t7, 0($t8)
+    
+    # temporarily ressign $t0 to virus address address
+    la $t0, V1_ADDR
+    sw $t8, 0($t0)
+    lw $t0, ADDR_DSPL # reset $t0
+    
     
     # v2 drawing
     jal choose_random_color
@@ -693,6 +938,11 @@ draw_viruses:
     
     sw $t7, 0($t8)
     
+    # temporarily ressign $t0 to virus address address
+    la $t0, V2_ADDR
+    sw $t8, 0($t0)
+    lw $t0, ADDR_DSPL # reset $t0
+    
     # v3 drawing
     jal choose_random_color
     move $t7, $v0 # assign colour for v3
@@ -703,6 +953,12 @@ draw_viruses:
     add $t8, $t8, $t0  
     
     sw $t7, 0($t8)
+    
+    # temporarily ressign $t0 to virus address address
+    la $t0, V3_ADDR
+    sw $t8, 0($t0)
+    lw $t0, ADDR_DSPL # reset $t0
+    
     j after_virus_draw # trying to escape a bug
     jr $ra
 
