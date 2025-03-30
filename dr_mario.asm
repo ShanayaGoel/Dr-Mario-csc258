@@ -76,6 +76,9 @@ game_loop:
     # 2a. Check for collisions
 	# 2b. Update locations (capsules)
 	redraw_screen:
+	       # Load the base address of the display
+           lw $t0, ADDR_DSPL 
+           
 	       lw $t2 CAP0_ADDR    # Load address of centre pixel
 	       lw $t3 CAP0_COL     # Load colour of centre pixel
 	       sw $t3 0($t2)       # Change colour of centre pixel to actual colour
@@ -299,8 +302,260 @@ downward_collision:
         # Draw new capsule
         jal draw_capsule
         
+paused_state:
+    li $t7, 0xFFFFFF # set colour to white
+    jal draw_paused
+    
+    # 4. Sleep
+	li $v0, 32
+	li $a0 16
+	syscall
+    
+    paused_state_loop:
+    # 4. Sleep
+	li $v0, 32
+	li $a0 16
+	syscall
+    # 1a. Check if key has been pressed
+    li 		$v0, 32
+	li 		$a0, 1
+	syscall
+
+    lw $t1, ADDR_KBRD               # $t1 = base address for keyboard
+    lw $t8, 0($t1)                  # Load first word from keyboard
+    beq $t8, 1, check_paused_keyboard_input      # If first word 1, key is pressed
+    b paused_state_loop
+    
+    
+    
+check_paused_keyboard_input:
+    
+	
+    lw $a0, 4($t1)                  # Load second word from keyboard
+    beq $a0, 0x70, respond_to_P     # Check if the key p was pressed
+
+    li $v0, 1                       # ask system to print $a0
+    syscall
+
+    b paused_state_loop
+
+respond_to_P:
+    lw $t7, COLOUR_BLACK
+    jal draw_paused
+    j redraw_screen
+    
+    
+
+
         
         
+draw_paused:
+    # assign start point 
+    li $t1, 3
+    li $t2, 20
+    
+    # Load the base address of the display
+    lw $t0, ADDR_DSPL 
+    
+    # Screen width
+    li $t9, 64 
+    
+    # $t7 is the colour black or white that is pushed in
+    
+    mul $t8, $t2, $t9  # assign y * screen width to $t8
+    add $t8, $t8, $t1  # add x value to start of row y 
+    sll $t8, $t8, 2    # some shifting stuff
+    add $t8, $t8, $t0  # add grid location to base bitmap address
+    
+    # start drawing row 1 
+    sw $t7, 0($t8)     # set first one to colour for p
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for a
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for u
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 12  # draw next pixel for s
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for E
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for D
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    # row 2 initialize
+    li $t1, 3
+    addi $t2, $t2, 1
+    mul $t8, $t2, $t9  # assign y * screen width to $t8
+    add $t8, $t8, $t1  # add x value to start of row y 
+    sll $t8, $t8, 2    # some shifting stuff
+    add $t8, $t8, $t0  # add grid location to base bitmap address
+    # start drawing row 2
+    
+    sw $t7, 0($t8)     # set first one to colour for p
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for a
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for u
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 12  # draw next pixel for s
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 12  # draw next pixel for E
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 12  # draw next pixel for D
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 12  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+
+    
+    # row 3 initialize
+    li $t1, 3
+    addi $t2, $t2, 1
+    mul $t8, $t2, $t9  # assign y * screen width to $t8
+    add $t8, $t8, $t1  # add x value to start of row y 
+    sll $t8, $t8, 2    # some shifting stuff
+    add $t8, $t8, $t0  # add grid location to base bitmap address
+    # start drawing row 3
+    
+    sw $t7, 0($t8)     # set first one to colour for p
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for a
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for u
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 12  # draw next pixel for s
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 12  # draw next pixel for E
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for D
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 12  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+
+    # row 4 initialize
+    li $t1, 3
+    addi $t2, $t2, 1
+    mul $t8, $t2, $t9  # assign y * screen width to $t8
+    add $t8, $t8, $t1  # add x value to start of row y 
+    sll $t8, $t8, 2    # some shifting stuff
+    add $t8, $t8, $t0  # add grid location to base bitmap address
+    # start drawing row 4
+    
+    sw $t7, 0($t8)     # set first one to colour for p
+    
+    addi $t8, $t8, 16  # draw next pixel for a
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for u
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 12  # draw next pixel for s
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 12  # draw next pixel for E
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 12  # draw next pixel for D
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 12  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    
+    ##INSERT ROW 5
+    li $t1, 3
+    addi $t2, $t2, 1
+    mul $t8, $t2, $t9  # assign y * screen width to $t8
+    add $t8, $t8, $t1  # add x value to start of row y 
+    sll $t8, $t8, 2    # some shifting stuff
+    add $t8, $t8, $t0  # add grid location to base bitmap address
+    
+    # start drawing row 5
+    
+    sw $t7, 0($t8)     # set first one to colour for p
+    
+    addi $t8, $t8, 16  # draw next pixel for a
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for u
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for s
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 12  # draw next pixel for E
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for D
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    
+    
+    # time to return
+    jr $ra
         
         
         
@@ -537,6 +792,7 @@ keyboard_input:                     # A key is pressed
     beq $a0, 0x61, respond_to_A     # Check if the key a was pressed
     beq $a0, 0x73, respond_to_S     # Check if the key s was pressed
     beq $a0, 0x64, respond_to_D     # Check if the key d was pressed
+    beq $a0, 0x70, paused_state     # Check if the key p was pressed
 
     li $v0, 1                       # ask system to print $a0
     syscall
