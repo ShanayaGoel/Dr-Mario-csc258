@@ -1,4 +1,4 @@
- ################# CSC258 Assembly Final Project ###################
+################# CSC258 Assembly Final Project ###################
 # This file contains our implementation of Dr Mario.
 #
 # Student 1: Shanaya Goel, 1010153361
@@ -27,6 +27,9 @@ COLOR_GRAY:   .word 0x808080  # Wall color
 COLOR_RED:    .word 0xFF0000  # Capsule left half
 COLOR_BLUE:   .word 0x0000FF  # Capsule right half
 COLOUR_BLACK: .word 0x000000  # Black for background
+TIMER: .word 0 # Timer for gravity
+GRAVITY_INTERVAL: .word 1000  # Time interval is 2s
+GRAVITY_TOTAL:    .word 0     # You like wanna check the time elapsed for gravity or something
 
 ##############################################################################
 # Our Variables
@@ -36,7 +39,6 @@ CAP0_ADDR:  .word ADDR_DSPL  # center pixel address
 CAP0_COL:   .word COLOR_GRAY # center pixel colour
 CAP1_ADDR:  .word ADDR_DSPL  # outer pixel address
 CAP1_COL:   .word COLOR_GRAY # outer pixel colour
-# should I add a variable related to orientation?
 V1_ADDR:    .word ADDR_DSPL  # virus 1 location
 V2_ADDR:    .word ADDR_DSPL  # virus 2 location
 V3_ADDR:    .word ADDR_DSPL  # virus 3 location
@@ -58,11 +60,13 @@ main:
     
     # Draw viruses
     jal draw_viruses
+    
     after_virus_draw:
-    # Draw the first capsule
-    jal draw_capsule
+        # Draw the first capsule
+        jal draw_capsule
 
     # Infinite loop (prevents program from exiting)
+    
 game_loop:
     # 1a. Check if key has been pressed
     li 		$v0, 32
@@ -72,9 +76,57 @@ game_loop:
     lw $t1, ADDR_KBRD               # $t1 = base address for keyboard
     lw $t8, 0($t1)                  # Load first word from keyboard
     beq $t8, 1, keyboard_input      # If first word 1, key is pressed
-    # 1b. Check which key has been pressed
-    # 2a. Check for collisions
-	# 2b. Update locations (capsules)
+    
+    # Update timer and check for auto-move
+    la $t0, TIMER 
+    lw $t1, 0($t0)
+    addi $t1, $t1, 16  # Increment timer by sleep time (16ms)
+    sw $t1, 0($t0)
+    
+    # Update gravity total time; we use this to determine when to increase the strength of gravity
+    la $t3, GRAVITY_TOTAL
+    lw $t4, 0($t3)
+    addi $t4, $t4, 16 # Once again, timer increased by sleep time (16ms)
+    sw $t4, 0($t3)
+    
+    # Check if gravity needs to increase (every 2s)
+    li $t5, 2000
+    blt $t4, $t5, skip_gravity_increase
+    
+    # Subtract 2000 from GRAVITY_TOTAL; to be precise, we are counting in milliseconds, after all
+    sub $t4, $t4, $t5
+    sw $t4, 0($t3)
+    
+    # Halve the gravity interval, but not below 50... you try it! Game becomes UNPLAYABLE
+    la $t6, GRAVITY_INTERVAL
+    lw $t7, 0($t6)
+    srl $t7, $t7, 1   # divide by 2
+    li $t8, 50       # minimum interval
+    bge $t7, $t8, not_min
+    move $t7, $t8
+    
+    # Let's say that the gravity interval isn't at its minimum value... then we increase the strength of gravity
+    not_min:
+        sw $t7, 0($t6)
+	
+	skip_gravity_increase:
+        # Check if it's time to auto move
+        la $t0, TIMER
+        lw $t1, 0($t0)
+        la $t2, GRAVITY_INTERVAL
+        lw $t2, 0($t2)
+        blt $t1, $t2, skip_auto_move
+        sub $t1, $t1, $t2  # Reset timer
+        sw $t1, 0($t0)
+        jal auto_move_down  # Trigger automatic downward move
+	
+	skip_auto_move:
+        # Continue with the rest of the game loop
+        lw $t1, ADDR_KBRD
+        lw $t8, 0($t1)
+        beq $t8, 1, keyboard_input
+        j game_loop
+    
 	redraw_screen:
 	       # Load the base address of the display
            lw $t0, ADDR_DSPL 
@@ -114,6 +166,7 @@ base_collision_check_outer:
 	li $a0 16
 	syscall
 	j game_loop
+	
 base_collision_check_inner:
     lw $t2 CAP0_ADDR
 	lw $t4 256($t2) # set t4 to address 1 lower than t2
@@ -1059,15 +1112,24 @@ return_green:
 return_blue:
     li $v0, 0x0000FF
     jr $ra
-
-
-
+    
 draw_capsule:
-    jal choose_random_color # Get a random number (1, 2, or 3)
+    # Reset gravity interval to initial value (1000ms)
+    la $t7, GRAVITY_INTERVAL
+    li $t6, 1000
+    sw $t6, 0($t7)
+    
+    # Reset gravity total time
+    la $t7, GRAVITY_TOTAL
+    sw $zero, 0($t7)
+    
+    # Proceed with capsule creation
+    jal choose_random_color
     move $t1, $v0           # Store result in $t1
     la $t7, CAP0_COL
     sw $t1 0($t7)
-    jal choose_random_color # Get a random number (1, 2, or 3)
+    
+    jal choose_random_color
     move $t2, $v0           # Store result in $t2
     la $t7, CAP1_COL
     sw $t2 0($t7)
@@ -1099,8 +1161,8 @@ draw_capsule:
     
     la $t7 CAP1_ADDR
     sw $t6 0($t7)   # store outer pixel address
-    j game_loop     # I was facing a problem with the following line causing a loop and not working, so I added this
-    jr $ra  # Return
+    j game_loop     # Return to game loop
+    jr $ra
     
     
 ##########################################################
@@ -1218,3 +1280,52 @@ draw_viruses:
     j after_virus_draw # trying to escape a bug
     jr $ra
 
+auto_move_down:
+    addi $sp, $sp, -8        # Make space for 2 registers on stack
+    sw $ra, 0($sp)           # Save return address
+    sw $s0, 4($sp)           # Save $s0 (we'll use it for color storage)
+
+    # First erase the current capsule
+    jal erase_capsule
+
+    # Move CAP0 down and check for collision
+    la $t3, CAP0_ADDR
+    lw $t2, CAP0_ADDR        # Load current position
+    lw $s0, CAP0_COL         # Save color before moving
+    addi $t2, $t2, 256       # Move down by 1 row (256 bytes)
+    lw $t6, COLOUR_BLACK
+    lw $t7, 0($t2)           # Check new position
+    bne $t7, $t6, auto_move_fail  # Skip if collision
+
+    # Update CAP0 position
+    sw $t2, 0($t3)           # Store new position
+    sw $s0, 0($t2)           # Draw capsule at new position
+
+    # Move CAP1 down and check for collision
+    la $t3, CAP1_ADDR
+    lw $t2, CAP1_ADDR        # Load current position
+    lw $s0, CAP1_COL         # Save color before moving
+    addi $t2, $t2, 256       # Move down by 1 row
+    lw $t7, 0($t2)           # Check new position
+    bne $t7, $t6, auto_move_fail  # Skip if collision
+
+    # Update CAP1 position
+    sw $t2, 0($t3)           # Store new position
+    sw $s0, 0($t2)           # Draw capsule at new position
+
+    j auto_move_success
+
+auto_move_fail:
+    # If we couldn't move, redraw capsule at original position
+    lw $t2, CAP0_ADDR
+    lw $t3, CAP0_COL
+    sw $t3, 0($t2)
+    lw $t2, CAP1_ADDR
+    lw $t3, CAP1_COL
+    sw $t3, 0($t2)
+
+auto_move_success:
+    lw $s0, 4($sp)           # Restore $s0
+    lw $ra, 0($sp)           # Restore return address
+    addi $sp, $sp, 8         # Restore stack pointer
+    jr $ra
