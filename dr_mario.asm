@@ -91,7 +91,7 @@ game_loop:
     beq $t7, $t4, respond_to_S # if timer cap = 20, just stay that way and drop
     la $t5, TIMER_ON_TIMER # adress
     lw $t6, TIMER_ON_TIMER # value
-    li $t7, 2
+    li $t7, 1
     beq $t6, $t7, increase_gravity
     
     addi $t6, $t6, 1 # increment timer on timer
