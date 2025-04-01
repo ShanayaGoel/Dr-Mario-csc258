@@ -60,8 +60,12 @@ main:
     jal draw_viruses
     after_virus_draw:
     # Draw the first capsule
+    li $t9, 0 # draw capsule preview for first time
     jal draw_capsule
-
+    
+    after_drawing_capsule:
+    jal move_preview_capsule_to_main
+    
     # Infinite loop (prevents program from exiting)
 game_loop:
     # 1a. Check if key has been pressed
@@ -299,8 +303,8 @@ downward_collision:
         
         jal drop_down_extras
         
-        # Draw new capsule
-        jal draw_capsule
+        # Draw new capsule + move preview to main
+        jal move_preview_capsule_to_main
         
 paused_state:
     li $t7, 0xFFFFFF # set colour to white
@@ -347,7 +351,7 @@ respond_to_P:
     
 
 
-        
+# code for drawing "paused" message when game enters paused state        
         
 draw_paused:
     # assign start point 
@@ -1060,17 +1064,81 @@ return_blue:
     li $v0, 0x0000FF
     jr $ra
 
-
+#############################
+# construction@!!@3oufhudshfdgyfhsahfewiudgweuiF
+#############################
 
 draw_capsule:
     jal choose_random_color # Get a random number (1, 2, or 3)
     move $t1, $v0           # Store result in $t1
-    la $t7, CAP0_COL
-    sw $t1 0($t7)
     jal choose_random_color # Get a random number (1, 2, or 3)
     move $t2, $v0           # Store result in $t2
-    la $t7, CAP1_COL
-    sw $t2 0($t7)
+
+    # Position the capsule at the top center of the bottle
+    li $t3, 35   # Y position
+    li $t4, 20   # Center(ish) of the bottle
+
+    # Screen width
+    li $t5, 64  
+
+    # Draw upper half of capsule
+    mul $t6, $t3, $t5  
+    add $t6, $t6, $t4  
+    sll $t6, $t6, 2    
+    add $t6, $t6, $t0  
+    
+    sw $t1, 0($t6)
+
+    # Draw right side of capsule
+    addi $t3, $t3, 1  # Move to next pixel
+    mul $t6, $t3, $t5  
+    add $t6, $t6, $t4  
+    sll $t6, $t6, 2    
+    add $t6, $t6, $t0  
+    sw $t2, 0($t6)   
+    
+    
+    beq $t9, 0, after_drawing_capsule # if signal is 0 go to game loop
+    beq $t9, 1, after_draw_capsule_in_move_preview_capsule_to_main
+    jr $ra  # Return
+
+    
+##########################UNDER CONSTRUCTION##############################################################
+
+#Move preview capsule to main
+move_preview_capsule_to_main:
+    # Screen width
+    li $t5, 64  
+    lw $t0, ADDR_DSPL # base bitmap address
+    #add collect and store colour heree
+    
+    li $t3, 35   # Y position of preview
+    li $t4, 20   # X position of bottle 
+    # get colour of upper pixel
+    mul $t6, $t3, $t5  
+    add $t6, $t6, $t4  
+    sll $t6, $t6, 2    
+    add $t6, $t6, $t0  
+    
+    lw $t1, 0($t6) # assign colour to $t1
+    la $t7 CAP0_COL
+    sw $t1 0($t7)   # store colour
+
+    # get colour of lower pixel
+    addi $t3, $t3, 1  # Move to next pixel
+    mul $t6, $t3, $t5  
+    add $t6, $t6, $t4  
+    sll $t6, $t6, 2    
+    add $t6, $t6, $t0  
+    lw $t2, 0($t6)   # assign colour to $t2
+    
+    la $t7 CAP1_COL
+    sw $t2 0($t7)   # store colour
+    
+    
+    
+
+    # draw actual capsule in position
 
     # Position the capsule at the top center of the bottle
     li $t3, 27   # Y position
@@ -1099,10 +1167,18 @@ draw_capsule:
     
     la $t7 CAP1_ADDR
     sw $t6 0($t7)   # store outer pixel address
+    
+    # INSERT CALL TO CREATE CAPSULE FOR SIDE FUNCTION
+    li $t9, 1 # send signal to come back to here
+    jal draw_capsule
+    
+    after_draw_capsule_in_move_preview_capsule_to_main:
     j game_loop     # I was facing a problem with the following line causing a loop and not working, so I added this
     jr $ra  # Return
     
-    
+############################# UNDER CONSTRUCTION ############################           
+
+
 ##########################################################
 # Drawing the viruses (does not store places of viruses for game over case)
 ##########################################################
