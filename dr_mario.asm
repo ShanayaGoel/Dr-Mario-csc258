@@ -43,6 +43,12 @@ V3_ADDR:    .word ADDR_DSPL  # virus 3 location
 # FOR PERUSING THE GRID
 CHECKING_X: .word ADDR_DSPL  # x of the spot
 CHECKING_Y: .word ADDR_DSPL  # y of the spot
+
+# Gravity stuff
+TIMER:      .word 0
+TIMER_CAP:  .word 60
+TIMER_ON_TIMER:  .word 0
+
 ##############################################################################
 # Code
 ##############################################################################
@@ -68,6 +74,43 @@ main:
     
     # Infinite loop (prevents program from exiting)
 game_loop:
+    # GRAVITY STUFF
+    la $t2, TIMER # loading timer address
+    lw $t3, TIMER # loading timer time
+    addi $t3, $t3, 1 # add 1 to timer
+    lw $t4, TIMER_CAP # cap on timer
+    beq $t3, $t4, drop_down_gravity
+    sw $t3, 0($t2)
+    j after_gravity_stuff
+    
+    
+    drop_down_gravity:
+    sw $zero, 0($t2) # reset timer
+    la $t2, TIMER_CAP # t2 now stores the address of timer_cap
+    li $t7, 20
+    beq $t7, $t4, respond_to_S # if timer cap = 20, just stay that way and drop
+    la $t5, TIMER_ON_TIMER # adress
+    lw $t6, TIMER_ON_TIMER # value
+    li $t7, 2
+    beq $t6, $t7, increase_gravity
+    
+    addi $t6, $t6, 1 # increment timer on timer
+    sw $t6, 0($t5)
+    j respond_to_S
+    
+    increase_gravity:
+    addi $t4, $t4, -1 # reduce cap
+    sw $t4, 0($t2) # set timer cap to new value
+    sw $zero, 0($t5) # reset timer on timer
+    j respond_to_S
+    
+    
+    
+    
+    
+
+
+    after_gravity_stuff:
     # 1a. Check if key has been pressed
     li 		$v0, 32
 	li 		$a0, 1
