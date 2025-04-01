@@ -834,12 +834,23 @@ drop_down_extras:
 
 keyboard_input:                     # A key is pressed
     lw $a0, 4($t1)                  # Load second word from keyboard
-    beq $a0, 0x71, respond_to_Q     # Check if the key q was pressed
-    beq $a0, 0x77, respond_to_W     # Check if the key w was pressed
-    beq $a0, 0x61, respond_to_A     # Check if the key a was pressed
-    beq $a0, 0x73, respond_to_S     # Check if the key s was pressed
-    beq $a0, 0x64, respond_to_D     # Check if the key d was pressed
-    beq $a0, 0x70, paused_state     # Check if the key p was pressed
+    move $t2, $a0   # move value from $a0 to $t2
+    # sound effect
+    li   $s4, 200        # Duration of base (i.e., eighth) note in milliseconds
+  
+    li   $a0, 76     # note   
+    li $a1, 1        # Set note duration 
+    li   $a2, 0          # Set the MIDI patch 0 (piano
+    li   $a3, 64         # Set a volume 
+    li   $v0, 33         # Asynchronous play sound
+    syscall              # Play note
+    
+    beq $t2, 0x71, respond_to_Q     # Check if the key q was pressed
+    beq $t2, 0x77, respond_to_W     # Check if the key w was pressed
+    beq $t2, 0x61, respond_to_A     # Check if the key a was pressed
+    beq $t2, 0x73, respond_to_S     # Check if the key s was pressed
+    beq $t2, 0x64, respond_to_D     # Check if the key d was pressed
+    beq $t2, 0x70, paused_state     # Check if the key p was pressed
 
     li $v0, 1                       # ask system to print $a0
     syscall
@@ -851,6 +862,7 @@ respond_to_Q:
 	syscall
 # Rotate 90 degrees clockwise
 respond_to_W:
+    
     jal erase_capsule
     lw $t2 CAP0_ADDR    # load current pixel0 location
     lw $t3 CAP1_ADDR    # load current pixel1 location
