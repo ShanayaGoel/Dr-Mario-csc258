@@ -585,8 +585,8 @@ downward_collision:
     lw $t2, CAP0_ADDR
     lw $t3, CAP1_ADDR
     # Check if the capsule has reached the top and the game is over
-    beq $t2, 0x10009b28, respond_to_Q # check cap0 to redirect
-    beq $t3, 0x10009c28, respond_to_Q # check cap1 to redirect
+    beq $t2, 0x10009b28, game_over_state # check cap0 to redirect
+    beq $t3, 0x10009c28, game_over_state # check cap1 to redirect
     
     
     # Load capsule colors to compare against
