@@ -49,6 +49,31 @@ TIMER:      .word 0
 TIMER_CAP:  .word 50
 TIMER_ON_TIMER:  .word 0
 
+# music stuff
+
+notes:
+    .word 
+    82, 83, 82, 83, 81, 79, 79, 81, 82, 83, 81, 79, 79, 0, 0, 0, 
+    82, 83, 82, 83, 81, 79, 79, 81, 60, 60, 61, 61, 62, 62, 63, 63, 
+    82, 83, 82, 83, 81, 79, 79, 81, 82, 83, 81, 79, 79, 0, 0, 0, 
+    82, 83, 82, 83, 81, 79, 79, 81, 84, 87, 84, 87, 85, 84, 83, 
+    75, 76, 75, 76, 74, 72, 72, 74, 75, 76, 74, 72, 72, 0, 0, 0,
+    75, 76, 75, 76, 74, 72, 72, 69, 64, 69, 72, 74, 72, 0, 71, 0, 
+    75, 76, 74, 72, 72, 0, 0, 0, 75, 76, 74, 72, 72, 0, 0, 0,
+    75, 76, 75, 76, 74, 72, 72, 69, 72, 0, 74, 0, 72, 0, 0
+    
+length: .word 126
+
+
+durations:
+  .word 0
+
+# index for place in music sequence
+MUSIC_INDEX: .word 0
+
+# variable incremented by game loop to determine to move to next music MUSIC_INDEX
+NOTE_INCREMENT: .word 0
+
 ##############################################################################
 # Code
 ##############################################################################
@@ -56,7 +81,13 @@ TIMER_ON_TIMER:  .word 0
 	.globl main
 
 main:
+    
+    la $t0, MUSIC_INDEX
+    sw $zero, 0($t0) # reset MUSIC_INDEX
 
+    la $t0, NOTE_INCREMENT
+    sw $zero, 0($t0) # reset NOTE_INCREMENT
+    
     la $t0, TIMER
     sw $zero, 0($t0) # reset timer
     
@@ -85,6 +116,57 @@ main:
     
     # Infinite loop (prevents program from exiting)
 game_loop:
+
+    # music stuff
+    la $t2, MUSIC_INDEX # loading MUSIC INDEX address
+    lw $t3, MUSIC_INDEX # loading MUSIC INDEX index
+    lw $t4, NOTE_INCREMENT # loading note increment value
+    li $t7, 1
+    beq $t4, $t7, play_theme_song_note
+    la $t5, NOTE_INCREMENT
+    addi $t4, $t4, 1 # increment note increment value
+    sw $t4, 0($t5) # set increment value
+    j after_theme_music_stuff
+    
+    
+    play_theme_song_note:
+
+        li $t7, 126 # duration
+        beq $t3, $t7, reset_theme_music_index
+        j produce_theme_note
+
+        reset_theme_music_index:
+          li $t3, 0
+          sw $t3, 0($t2)
+
+        produce_theme_note:
+        # sound effect
+        
+        la $t5, notes
+        li $t7, 4
+        mul $t6, $t7, $t3 # getting value to add to notes address
+        add $t6, $t5, $t6 # t6 now holds actual place with note
+
+        lw $t5, 0($t6) # t5 now holds the actual note
+        li   $s4, 200        # Duration of base (i.e., eighth) note in milliseconds
+        add   $a0, $zero, $t5      # note as loaded from list  
+        li $a1, 100       # Set note duration 
+        li   $a2, 0          # Set the MIDI patch 0 (piano)
+        li   $a3, 64         # Set a volume 
+        li   $v0, 33         # Asynchronous play sound
+        syscall              # Play note
+
+        addi $t3, $t3, 1 # increment music index
+        sw $t3, 0($t2) # set actual value to music index 
+
+        li $t4, 0
+        la $t5, NOTE_INCREMENT
+        sw $t4, 0($t5) # set reset value of increment
+        
+    
+
+    after_theme_music_stuff:
+  
     # GRAVITY STUFF
     la $t2, TIMER # loading timer address
     lw $t3, TIMER # loading timer time
@@ -1829,4 +1911,3 @@ draw_viruses:
     
     j after_virus_draw # trying to escape a bug
     jr $ra
-
