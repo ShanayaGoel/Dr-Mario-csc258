@@ -43,6 +43,12 @@ V3_ADDR:    .word ADDR_DSPL  # virus 3 location
 # FOR PERUSING THE GRID
 CHECKING_X: .word ADDR_DSPL  # x of the spot
 CHECKING_Y: .word ADDR_DSPL  # y of the spot
+
+# Gravity stuff
+TIMER:      .word 0
+TIMER_CAP:  .word 50
+TIMER_ON_TIMER:  .word 0
+
 ##############################################################################
 # Code
 ##############################################################################
@@ -50,6 +56,17 @@ CHECKING_Y: .word ADDR_DSPL  # y of the spot
 	.globl main
 
 main:
+
+    la $t0, TIMER
+    sw $zero, 0($t0) # reset timer
+    
+    la $t0, TIMER_ON_TIMER
+    sw $zero, 0($t0) # reset timer cap
+    
+    li $t1, 50
+    la $t0, TIMER_CAP
+    sw $t1, 0($t0) # reset timer
+    
     # Load the base address of the display
     lw $t0, ADDR_DSPL 
 
@@ -60,10 +77,68 @@ main:
     jal draw_viruses
     after_virus_draw:
     # Draw the first capsule
+    li $t9, 0 # draw capsule preview for first time
     jal draw_capsule
-
+    
+    after_drawing_capsule:
+    jal move_preview_capsule_to_main
+    
     # Infinite loop (prevents program from exiting)
 game_loop:
+    # GRAVITY STUFF
+    la $t2, TIMER # loading timer address
+    lw $t3, TIMER # loading timer time
+    addi $t3, $t3, 1 # add 1 to timer
+    lw $t4, TIMER_CAP # cap on timer
+    beq $t3, $t4, drop_down_gravity
+    sw $t3, 0($t2)
+    j after_gravity_stuff
+    
+    
+    drop_down_gravity:
+    sw $zero, 0($t2) # reset timer
+    la $t2, TIMER_CAP # t2 now stores the address of timer_cap
+    li $t7, 30
+    beq $t7, $t4, respond_to_S # if timer cap = 30, just stay that way and drop
+    la $t5, TIMER_ON_TIMER # adress
+    lw $t6, TIMER_ON_TIMER # value
+    li $t7, 1
+    beq $t6, $t7, increase_gravity
+    
+    addi $t6, $t6, 1 # increment timer on timer
+    sw $t6, 0($t5)
+    j respond_to_S
+    
+    increase_gravity:
+    addi $t4, $t4, -2 # reduce cap
+    sw $t4, 0($t2) # set timer cap to new value
+    sw $zero, 0($t5) # reset timer on timer
+    j respond_to_S
+    
+    
+    
+
+
+    after_gravity_stuff:
+    
+    # check for virus elimination
+    lw $t1, V1_ADDR
+    lw $t8, 0($t1) # colour at V1_ADDR
+    beq $zero, $t8, v2_end_check
+    j after_virus_over_check
+    v2_end_check:
+    lw $t1, V2_ADDR
+    lw $t8, 0($t1) # colour at V2_ADDR
+    beq $zero, $t8, v3_end_check
+    j after_virus_over_check
+    
+    v3_end_check:
+    lw $t1, V3_ADDR
+    lw $t8, 0($t1) # colour at V3_ADDR
+    beq $zero, $t8, game_over_state
+    j after_virus_over_check
+    
+    after_virus_over_check:
     # 1a. Check if key has been pressed
     li 		$v0, 32
 	li 		$a0, 1
@@ -104,6 +179,373 @@ game_loop:
 
     # 5. Go back to Step 1
     j game_loop  
+    
+    
+
+    
+#######################GAME OVER CONSTRUCTION###################
+game_over_state:
+    li $t7, 0xFFFFFF # set colour to white
+    jal draw_game_over
+    
+    # 4. Sleep
+	li $v0, 32
+	li $a0 16
+	syscall
+    
+    game_over_state_loop:
+    # 4. Sleep
+	li $v0, 32
+	li $a0 16
+	syscall
+    # 1a. Check if key has been pressed
+    li 		$v0, 32
+	li 		$a0, 1
+	syscall
+
+    lw $t1, ADDR_KBRD               # $t1 = base address for keyboard
+    lw $t8, 0($t1)                  # Load first word from keyboard
+    beq $t8, 1, check_game_over_keyboard_input      # If first word 1, key is pressed
+    b game_over_state_loop
+    
+    
+    
+check_game_over_keyboard_input:
+    
+	
+    lw $a0, 4($t1)                  # Load second word from keyboard
+    beq $a0, 0x72, respond_to_R     # Check if the key p was pressed
+
+    li $v0, 1                       # ask system to print $a0
+    syscall
+
+    b game_over_state_loop
+
+respond_to_R:
+    # lw $t7, COLOUR_BLACK
+    # jal draw_game_over
+    j reset_bitmap_display
+    
+    
+
+
+# code for drawing "paused" message when game enters paused state        
+        
+draw_game_over:
+    # assign start point 
+    li $t1, 3
+    li $t2, 20
+    
+    # Load the base address of the display
+    lw $t0, ADDR_DSPL 
+    
+    # Screen width
+    li $t9, 64 
+    
+    # $t7 is the colour black or white that is pushed in
+    
+    mul $t8, $t2, $t9  # assign y * screen width to $t8
+    add $t8, $t8, $t1  # add x value to start of row y 
+    sll $t8, $t8, 2    # some shifting stuff
+    add $t8, $t8, $t0  # add grid location to base bitmap address
+    
+    # start drawing row 1 
+    sw $t7, 0($t8)     # set first one to colour for g
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for a
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for m
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for e
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 12  # draw next pixel for o
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for v
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for e
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for r
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    
+    # row 2 initialize
+    li $t1, 3
+    addi $t2, $t2, 1
+    mul $t8, $t2, $t9  # assign y * screen width to $t8
+    add $t8, $t8, $t1  # add x value to start of row y 
+    sll $t8, $t8, 2    # some shifting stuff
+    add $t8, $t8, $t0  # add grid location to base bitmap address
+    # start drawing row 2
+    
+    sw $t7, 0($t8)     # set first one to colour for g
+    
+    addi $t8, $t8, 20  # draw next pixel for a
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for m
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for e
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 16  # draw next pixel for o
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for v
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for e
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 12  # draw next pixel for R
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+
+    
+    # row 3 initialize
+    li $t1, 3
+    addi $t2, $t2, 1
+    mul $t8, $t2, $t9  # assign y * screen width to $t8
+    add $t8, $t8, $t1  # add x value to start of row y 
+    sll $t8, $t8, 2    # some shifting stuff
+    add $t8, $t8, $t0  # add grid location to base bitmap address
+    # start drawing row 3
+    
+    sw $t7, 0($t8)     # set first one to colour for g
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for a
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for m
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for E
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 12  # draw next pixel for o
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for v
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for e
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for r
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+
+    # row 4 initialize
+    li $t1, 3
+    addi $t2, $t2, 1
+    mul $t8, $t2, $t9  # assign y * screen width to $t8
+    add $t8, $t8, $t1  # add x value to start of row y 
+    sll $t8, $t8, 2    # some shifting stuff
+    add $t8, $t8, $t0  # add grid location to base bitmap address
+    # start drawing row 4
+    
+    sw $t7, 0($t8)     # set first one to colour for g
+    addi $t8, $t8, 12  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for a
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for m
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for e
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 16  # draw next pixel for o
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for v
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for e
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 12  # draw next pixel for R
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    
+    ##INSERT ROW 5
+    li $t1, 3
+    addi $t2, $t2, 1
+    mul $t8, $t2, $t9  # assign y * screen width to $t8
+    add $t8, $t8, $t1  # add x value to start of row y 
+    sll $t8, $t8, 2    # some shifting stuff
+    add $t8, $t8, $t0  # add grid location to base bitmap address
+    
+    # start drawing row 5
+    
+    sw $t7, 0($t8)     # set first one to colour for g
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for a
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for m
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8 # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for e
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 12  # draw next pixel for o
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 12  # draw next pixel for v
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 12  # draw next pixel for e
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 4  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    addi $t8, $t8, 8  # draw next pixel for r
+    sw $t7, 0($t8)     # set to colour
+    addi $t8, $t8, 8  # draw next pixel
+    sw $t7, 0($t8)     # set to colour
+    
+    # time to return
+    jr $ra
+        
+
+
+
+reset_bitmap_display:
+    # iterate through bitmap display and set each pixel to black
+    # Load the base address of the display
+    lw $t0, ADDR_DSPL 
+    li $t8, 0
+    li $t2, 0
+    li $t3, 4096
+    
+    reset_bitmap_screen_loop:
+    sw $t8, 0($t0)
+    
+    addi $t0, $t0, 4
+    addi $t2, $t2, 1
+    bgt $t3, $t2, reset_bitmap_screen_loop
+    lw $t0, ADDR_DSPL 
+    j main
+    
+    
+    
+    
+
+
+
+
+
+
+
+
+#####################GAME OVER CONSTRCTII -------------------
+    
+    
     
 base_collision_check_outer:
     lw $t2 CAP1_ADDR
@@ -215,12 +657,27 @@ downward_collision:
         j continue_scanning
         
     erase_streak:
+        # Plays a sound;
+        li   $s3, 300        # Medium duration
+        li   $a0, 84         # High pitch (C6)
+        li   $a1, 300
+        li   $a2, 13         # Bright bell-like sound
+        li   $a3, 100        # Loud volume
+        li   $v0, 33
+        syscall
+        
+        # Add harmonic
+        li   $a0, 96         # Even higher pitch
+        li   $a1, 300
+        syscall
+        
         # Erase just the 4-pixel streak
         lw $t6, COLOUR_BLACK
         sw $t6, 0($s4)        # Erase first pixel
         sw $t6, 4($s4)        # Erase second pixel
         sw $t6, 8($s4)        # Erase third pixel
         sw $t6, 12($s4)       # Erase fourth pixel
+        
         j check_vertical_erase # Skip CAP1 row check
         
     check_cap1_row:
@@ -255,6 +712,20 @@ downward_collision:
         j continue_cap1_scan
         
     erase_cap1_streak:
+        # Plays a sound;
+        li   $s4, 300        # Medium duration
+        li   $a0, 84         # High pitch (C6)
+        li   $a1, 300
+        li   $a2, 13         # Bright bell-like sound
+        li   $a3, 100        # Loud volume
+        li   $v0, 33
+        syscall
+        
+        # Add harmonic
+        li   $a0, 96         # Even higher pitch
+        li   $a1, 300
+        syscall
+        
         lw $t6, COLOUR_BLACK
         sw $t6, 0($s4)
         sw $t6, 4($s4)
@@ -267,6 +738,21 @@ downward_collision:
     check_vertical_erase:
         # Only erase if we have 4 or more in a column
         blt $t9, 4, check_cap1_erase
+
+        # Plays a sound;
+        li   $s4, 300        # Medium duration
+        li   $a0, 84         # High pitch (C6)
+        li   $a1, 300
+        li   $a2, 13         # Bright bell-like sound
+        li   $a3, 100        # Loud volume
+        li   $v0, 33
+        syscall
+        
+        # Add harmonic
+        li   $a0, 96         # Even higher pitch
+        li   $a1, 300
+        syscall
+        
         # Erase CAP0 column
         lw $t2, CAP0_ADDR
         lw $t6, COLOUR_BLACK
@@ -280,6 +766,7 @@ downward_collision:
         
     check_cap1_erase:
         blt $t8, 4, column_check_done
+        
         # Erase CAP1 column
         lw $t3, CAP1_ADDR
         lw $t6, COLOUR_BLACK
@@ -292,6 +779,14 @@ downward_collision:
         sw $t6, 0($t3)        # erase fourth
         
     column_check_done:
+        li   $s4, 150        # Medium duration
+        li   $a0, 60         # Lower pitch (C4) for "thud" effect
+        li   $a1, 150        # Medium duration
+        li   $a2, 13         # Xylophone instrument
+        li   $a3, 90         # Strong volume
+        li   $v0, 33
+        syscall
+        
         # Small delay before new capsule
         li $v0, 32
         li $a0, 16
@@ -299,8 +794,8 @@ downward_collision:
         
         jal drop_down_extras
         
-        # Draw new capsule
-        jal draw_capsule
+        # Draw new capsule + move preview to main
+        jal move_preview_capsule_to_main
         
 paused_state:
     li $t7, 0xFFFFFF # set colour to white
@@ -347,7 +842,7 @@ respond_to_P:
     
 
 
-        
+# code for drawing "paused" message when game enters paused state        
         
 draw_paused:
     # assign start point 
@@ -657,6 +1152,7 @@ downward_collision_after_dropping_extras:
         sw $t6, 0($t2)        # erase fourth
         
     column_check_done_pix:
+      
         # Small delay before new capsule
         li $v0, 32
         li $a0, 16
@@ -787,23 +1283,38 @@ drop_down_extras:
 
 keyboard_input:                     # A key is pressed
     lw $a0, 4($t1)                  # Load second word from keyboard
-    beq $a0, 0x71, respond_to_Q     # Check if the key q was pressed
-    beq $a0, 0x77, respond_to_W     # Check if the key w was pressed
-    beq $a0, 0x61, respond_to_A     # Check if the key a was pressed
-    beq $a0, 0x73, respond_to_S     # Check if the key s was pressed
-    beq $a0, 0x64, respond_to_D     # Check if the key d was pressed
-    beq $a0, 0x70, paused_state     # Check if the key p was pressed
+    move $t2, $a0   # move value from $a0 to $t2
+    
+    beq $t2, 0x71, respond_to_Q     # Check if the key q was pressed
+    beq $t2, 0x77, respond_to_W     # Check if the key w was pressed
+    beq $t2, 0x61, respond_to_A     # Check if the key a was pressed
+    beq $t2, 0x73, respond_to_S     # Check if the key s was pressed
+    beq $t2, 0x64, respond_to_D     # Check if the key d was pressed
+    beq $t2, 0x70, paused_state     # Check if the key p was pressed
 
     li $v0, 1                       # ask system to print $a0
     syscall
 
     b game_loop
+    
 # Quit
 respond_to_Q:
 	li $v0, 10                      # Quit gracefully
 	syscall
+    
 # Rotate 90 degrees clockwise
 respond_to_W:
+
+    # sound effect
+    li   $s4, 100        # Duration of base (i.e., eighth) note in milliseconds
+  
+    li   $a0, 72     # note   
+    li $a1, 100       # Set note duration 
+    li   $a2, 96          # Set the MIDI patch 0 (piano)
+    li   $a3, 88         # Set a volume 
+    li   $v0, 33         # Asynchronous play sound
+    syscall              # Play note
+    
     jal erase_capsule
     lw $t2 CAP0_ADDR    # load current pixel0 location
     lw $t3 CAP1_ADDR    # load current pixel1 location
@@ -850,8 +1361,18 @@ respond_to_W:
         bne $t7, $t6, redraw_screen # if this change would cause pixel to overlap, just go back to rebuild capsule 
         sw $t3 0($t2)    # rotates outer pixel onto right
         j redraw_screen # go back to redraw screen in game_loop
+
 # Move left
 respond_to_A:
+    # Plays a sound
+    li   $s4, 80         # Very short duration (80ms)
+    li   $a0, 64         # Mid-low pitch (E4)
+    li   $a1, 80         # Matches duration
+    li   $a2, 112        # "Click" instrument (Synth Noise)
+    li   $a3, 70         # Medium volume (quieter than rotation)
+    li   $v0, 33         # Asynchronous play
+    syscall
+    
     jal erase_capsule
     la $t3 CAP0_ADDR    # load address of cap0
     lw $t2 CAP0_ADDR    # load current pixel0 location
@@ -873,6 +1394,15 @@ respond_to_A:
     
 # Move down
 respond_to_S:
+    # Plays a sound
+    li   $s4, 80         # Very short duration (80ms)
+    li   $a0, 64         # Mid-low pitch (E4)
+    li   $a1, 80         # Matches duration
+    li   $a2, 112        # "Click" instrument (Synth Noise)
+    li   $a3, 70         # Medium volume (quieter than rotation)
+    li   $v0, 33         # Asynchronous play
+    syscall
+    
     jal erase_capsule
     la $t3 CAP0_ADDR 
     lw $t2 CAP0_ADDR    # load current pixel0 location
@@ -891,8 +1421,18 @@ respond_to_S:
     sw $t8 0($t9)    # store
     sw $t2 0($t3)
     j redraw_screen # go back to redraw screen in game_loop
+    
 # Move right
 respond_to_D:
+    # Plays a sound
+    li   $s4, 60         # Very short duration (60ms)
+    li   $a0, 55         # Low pitch (G3)
+    li   $a1, 60         # Matches duration  
+    li   $a2, 32         # "Bass" instrument (Acoustic Bass)
+    li   $a3, 60         # Quiet volume (60/127)
+    li   $v0, 33         # Asynchronous play
+    syscall
+    
     jal erase_capsule
     la $t3 CAP0_ADDR 
     lw $t2 CAP0_ADDR    # load current pixel0 location
@@ -1060,17 +1600,81 @@ return_blue:
     li $v0, 0x0000FF
     jr $ra
 
-
+#############################
+# construction@!!@3oufhudshfdgyfhsahfewiudgweuiF
+#############################
 
 draw_capsule:
     jal choose_random_color # Get a random number (1, 2, or 3)
     move $t1, $v0           # Store result in $t1
-    la $t7, CAP0_COL
-    sw $t1 0($t7)
     jal choose_random_color # Get a random number (1, 2, or 3)
     move $t2, $v0           # Store result in $t2
-    la $t7, CAP1_COL
-    sw $t2 0($t7)
+
+    # Position the capsule at the top center of the bottle
+    li $t3, 35   # Y position
+    li $t4, 20   # Center(ish) of the bottle
+
+    # Screen width
+    li $t5, 64  
+
+    # Draw upper half of capsule
+    mul $t6, $t3, $t5  
+    add $t6, $t6, $t4  
+    sll $t6, $t6, 2    
+    add $t6, $t6, $t0  
+    
+    sw $t1, 0($t6)
+
+    # Draw right side of capsule
+    addi $t3, $t3, 1  # Move to next pixel
+    mul $t6, $t3, $t5  
+    add $t6, $t6, $t4  
+    sll $t6, $t6, 2    
+    add $t6, $t6, $t0  
+    sw $t2, 0($t6)   
+    
+    
+    beq $t9, 0, after_drawing_capsule # if signal is 0 go to game loop
+    beq $t9, 1, after_draw_capsule_in_move_preview_capsule_to_main
+    jr $ra  # Return
+
+    
+##########################UNDER CONSTRUCTION##############################################################
+
+#Move preview capsule to main
+move_preview_capsule_to_main:
+    # Screen width
+    li $t5, 64  
+    lw $t0, ADDR_DSPL # base bitmap address
+    #add collect and store colour heree
+    
+    li $t3, 35   # Y position of preview
+    li $t4, 20   # X position of bottle 
+    # get colour of upper pixel
+    mul $t6, $t3, $t5  
+    add $t6, $t6, $t4  
+    sll $t6, $t6, 2    
+    add $t6, $t6, $t0  
+    
+    lw $t1, 0($t6) # assign colour to $t1
+    la $t7 CAP0_COL
+    sw $t1 0($t7)   # store colour
+
+    # get colour of lower pixel
+    addi $t3, $t3, 1  # Move to next pixel
+    mul $t6, $t3, $t5  
+    add $t6, $t6, $t4  
+    sll $t6, $t6, 2    
+    add $t6, $t6, $t0  
+    lw $t2, 0($t6)   # assign colour to $t2
+    
+    la $t7 CAP1_COL
+    sw $t2 0($t7)   # store colour
+    
+    
+    
+
+    # draw actual capsule in position
 
     # Position the capsule at the top center of the bottle
     li $t3, 27   # Y position
@@ -1099,10 +1703,18 @@ draw_capsule:
     
     la $t7 CAP1_ADDR
     sw $t6 0($t7)   # store outer pixel address
+    
+    # INSERT CALL TO CREATE CAPSULE FOR SIDE FUNCTION
+    li $t9, 1 # send signal to come back to here
+    jal draw_capsule
+    
+    after_draw_capsule_in_move_preview_capsule_to_main:
     j game_loop     # I was facing a problem with the following line causing a loop and not working, so I added this
     jr $ra  # Return
     
-    
+############################# UNDER CONSTRUCTION ############################           
+
+
 ##########################################################
 # Drawing the viruses (does not store places of viruses for game over case)
 ##########################################################
