@@ -1446,15 +1446,6 @@ respond_to_W:
 
 # Move left
 respond_to_A:
-    # Plays a sound
-    li   $s4, 80         # Very short duration (80ms)
-    li   $a0, 64         # Mid-low pitch (E4)
-    li   $a1, 80         # Matches duration
-    li   $a2, 112        # "Click" instrument (Synth Noise)
-    li   $a3, 70         # Medium volume (quieter than rotation)
-    li   $v0, 33         # Asynchronous play
-    syscall
-    
     jal erase_capsule
     la $t3 CAP0_ADDR    # load address of cap0
     lw $t2 CAP0_ADDR    # load current pixel0 location
@@ -1476,14 +1467,6 @@ respond_to_A:
     
 # Move down
 respond_to_S:
-    # Plays a sound
-    li   $s4, 80         # Very short duration (80ms)
-    li   $a0, 64         # Mid-low pitch (E4)
-    li   $a1, 80         # Matches duration
-    li   $a2, 112        # "Click" instrument (Synth Noise)
-    li   $a3, 70         # Medium volume (quieter than rotation)
-    li   $v0, 33         # Asynchronous play
-    syscall
     
     jal erase_capsule
     la $t3 CAP0_ADDR 
@@ -1506,14 +1489,6 @@ respond_to_S:
     
 # Move right
 respond_to_D:
-    # Plays a sound
-    li   $s4, 60         # Very short duration (60ms)
-    li   $a0, 55         # Low pitch (G3)
-    li   $a1, 60         # Matches duration  
-    li   $a2, 32         # "Bass" instrument (Acoustic Bass)
-    li   $a3, 60         # Quiet volume (60/127)
-    li   $v0, 33         # Asynchronous play
-    syscall
     
     jal erase_capsule
     la $t3 CAP0_ADDR 
