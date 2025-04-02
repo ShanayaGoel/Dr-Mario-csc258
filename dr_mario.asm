@@ -66,7 +66,7 @@ length: .word 126
 
 
 durations:
-  .word 0
+  .word 100
 
 # index for place in music sequence
 MUSIC_INDEX: .word 0
@@ -151,10 +151,18 @@ game_loop:
         li   $s4, 200        # Duration of base (i.e., eighth) note in milliseconds
         add   $a0, $zero, $t5      # note as loaded from list  
         li $a1, 100       # Set note duration 
-        li   $a2, 0          # Set the MIDI patch 0 (piano)
+        li   $a2, 17          # Set the MIDI patch 17 
         li   $a3, 64         # Set a volume 
         li   $v0, 33         # Asynchronous play sound
         syscall              # Play note
+        
+        # Buffer: Silent note (same pitch, volume = 0)
+        move $a0, $t5            # Same note pitch
+        li   $a1, 10             # Very short duration (10ms)
+        li   $a2, 89             # Same instrument
+        li   $a3, 0              # Volume = 0 (silent)
+        li   $v0, 33             # syscall 33 (async play)
+        syscall                  # Play silent note
 
         addi $t3, $t3, 1 # increment music index
         sw $t3, 0($t2) # set actual value to music index 
